@@ -12,3 +12,6 @@ extension/dist/
 # 临时
 .cache/
 tmp/
+
+# 词库导出备份（popup 导出文件名形如 vocab-radar-YYYY-MM-DD.json）
+vocab-radar-*.json

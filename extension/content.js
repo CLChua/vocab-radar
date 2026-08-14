@@ -13,6 +13,8 @@
 
   // ========== 配置 ==========
   const MAX_WORD_LEN = 50;
+  // 单词/短语超过该长度时，弹窗头部改为上下两行：音标换到单词下方，单词与音标都左对齐
+  const LONG_WORD_THRESHOLD = 20;
   // 单词或短语：英文字母、连字符、撇号、空格；不接受标点/换行
   const VALID_RE = /^[A-Za-z][A-Za-z\s'\-]{0,49}$/;
 
@@ -111,8 +113,16 @@
         word-wrap: break-word;
       }
       .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+      /* 超长单词：word 独占第一行，phonetic 换到第二行，与单词同左对齐；badge 仍靠右 */
+      .head.vr-stack { flex-wrap: wrap; row-gap: 4px; }
+      .head.vr-stack .word { flex: 1 1 100%; }
       .word { flex: 0 1 auto; min-width: 0; font-size: 16px; font-weight: 600; color: #1a1a1a; overflow-wrap: anywhere; }
-      .phonetic { flex-shrink: 0; font-size: 12px; color: #888; white-space: nowrap; }
+      .phonetic {
+        flex: 0 1 auto; min-width: 0;
+        font-size: 12px; color: #888;
+        white-space: normal; overflow-wrap: anywhere;
+        max-width: 100%;
+      }
       .speak-btn {
         flex-shrink: 0; border: none; background: none; cursor: pointer;
         font-size: 14px; line-height: 1; padding: 2px 4px; color: #666; border-radius: 4px;
@@ -245,6 +255,8 @@
   }
 
   // ========== 发音：浏览器内置 Web Speech API（与 DeepSeek 无关，纯本地 TTS） ==========
+  // 隐私说明：只允许 localService 语音。Chrome 里 Google 等 network voices 会把文本上传到远程
+  // 服务器合成语音，违反项目"纯客户端、无隐私顾虑"的定位；Windows/Mac 系统本地语音不受影响。
   let cachedVoices = [];
   function refreshVoices() {
     try {
@@ -258,23 +270,47 @@
     }
   } catch (_) {}
 
-  // 优先美式英语、名字里带 Google/Microsoft 的真人声；没有就用任意 en 语音
-  function pickEnVoice() {
-    if (cachedVoices.length === 0) refreshVoices();
-    const en = cachedVoices.filter((v) => /^en[-_]/.test(v.lang || ''));
-    if (en.length === 0) return null;
-    const us = en.filter((v) => /en[-_]US/i.test(v.lang || ''));
-    const pool = us.length > 0 ? us : en;
-    return pool.find((v) => /Google|Microsoft|Natural|Samantha|David|Zira|Alex/i.test(v.name || '')) || pool[0];
+  // 只保留本地语音：localService === true 是本地；属性缺失（Firefox/旧版）不挡功能，视为本地
+  function isLocalVoice(v) {
+    return typeof v.localService !== 'boolean' || v.localService === true;
   }
+
+  // 按阅读语言挑语音：优先该语言的本地真人声，其次任意本地语音
+  function pickVoiceForLang(langCode) {
+    if (cachedVoices.length === 0) refreshVoices();
+    const prefix = (langCode || 'en').toLowerCase();
+    const pool = cachedVoices.filter(
+      (v) => isLocalVoice(v) && v.lang && v.lang.toLowerCase().startsWith(prefix),
+    );
+    if (pool.length === 0) return null;
+    // 方言偏好：en → 美国英语；zh → 普通话；其余语言无偏好
+    const dialectPref = { en: 'US', zh: 'CN' };
+    const pref = dialectPref[prefix];
+    let favored = pool;
+    if (pref) {
+      const f = pool.filter((v) => new RegExp(`^${prefix}[-_]${pref}`, 'i').test(v.lang));
+      if (f.length > 0) favored = f;
+    }
+    // 名字里带真人声关键词的优先；没有就用该语言第一个
+    return favored.find((v) =>
+      /Microsoft|Natural|Samantha|David|Zira|Alex|Aria|Jenny|Guy|Daniel|George|Huihui|Yaoyao|Kangkang|Haruka|Ichiro|Minji|Sunhi|Amelie|Katja|Laura|Helena|Pablo|Alva/i.test(v.name || '')
+    ) || favored[0];
+  }
+
+  // 阅读语言 → speechSynthesis locale（en 读美国音，zh 普通话，其余用标准 locale）
+  const SRC_LANG_LOCALE = {
+    en: 'en-US', zh: 'zh-CN', ja: 'ja-JP', ko: 'ko-KR',
+    fr: 'fr-FR', de: 'de-DE', es: 'es-ES',
+  };
 
   function speakWord(word) {
     try {
       if (!window.speechSynthesis || !word) return;
       speechSynthesis.cancel(); // 打断上一次朗读
+      const srcLang = (cachedSettings && cachedSettings.sourceLang) || 'en';
       const utter = new SpeechSynthesisUtterance(word);
-      utter.lang = 'en-US';
-      const voice = pickEnVoice();
+      utter.lang = SRC_LANG_LOCALE[srcLang] || srcLang;
+      const voice = pickVoiceForLang(srcLang);
       if (voice) utter.voice = voice;
       utter.rate = 0.95;
       speechSynthesis.speak(utter);
@@ -322,7 +358,10 @@
     hideTooltip();
     ensurePopup();
     placePopup(rect);
-    popupRoot.querySelector('.word').textContent = word;
+    const wordEl = popupRoot.querySelector('.word');
+    wordEl.textContent = word;
+    // 超长单词/短语：音标换行到单词下方，单词与音标都左对齐（badge 仍在右侧）
+    wordEl.closest('.head').classList.toggle('vr-stack', word.length > LONG_WORD_THRESHOLD);
     currentWord = word;
 
     // 扩展刚被 reload 过 → 这个 tab 上的 content.js 是僵尸 → 给清晰提示

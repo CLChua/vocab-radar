@@ -19,6 +19,17 @@ async function getNoKeyErrorMessage(lang) {
   }
 }
 
+// 音标功能上线前的旧缓存 translation JSON 没有 phonetic 字段；
+// 缺音标时视为缓存失效 → 重译一次补上（流结束后 saveTranslation 会覆盖缓存，之后命中即带音标）
+function hasPhonetic(translationJson) {
+  try {
+    const obj = JSON.parse(translationJson);
+    return typeof obj?.phonetic === 'string' && obj.phonetic.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
 // ====== content.js 通过 chrome.runtime.connect({name:'translate'}) 建长连接走流式 ======
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -45,10 +56,15 @@ chrome.runtime.onConnect.addListener((port) => {
       // 2) 把 meta 包成 SSE 格式发给 content.js（保持原协议不变）
       port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify({ meta })}\n\n` });
 
-      // 2.5) 缓存命中：仅当**翻译时的目标语言**和当前用户偏好一致才用缓存
+      // 2.5) 缓存命中：仅当**翻译时的目标语言**和当前用户偏好一致，且缓存带 phonetic 字段才用缓存
       //      用户切换 targetLang 后，旧 lang 的缓存失效 → 重新调 DeepSeek
+      //      旧版本缓存没有 phonetic 字段（音标功能上线前）→ 缺音标视为失效，重译一次补上
       const settings = await getSettings();
-      if (cachedTranslation && cachedTranslationLang === settings.targetLang) {
+      const cacheUsable = cachedTranslation && cachedTranslationLang === settings.targetLang;
+      if (cacheUsable && !hasPhonetic(cachedTranslation)) {
+        console.log(`[VocabRadar] 旧缓存缺 phonetic word="${word}" → 重译补音标`);
+      }
+      if (cacheUsable && hasPhonetic(cachedTranslation)) {
         const fakeChunk = {
           choices: [{ delta: { content: cachedTranslation }, finish_reason: 'stop' }],
         };

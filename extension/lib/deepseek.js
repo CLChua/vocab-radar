@@ -8,6 +8,24 @@
 
 import { langDisplayName } from './settings.js';
 
+// 按阅读语言给出 phonetic 字段的注音规范：
+// 拉丁字母语系（en/fr/de/es）→ IPA 音标；ja → 假名；ko → 谚文；zh → 拼音
+// 保持系统 prompt 不变；这段指令追加在 user prompt 尾部，同一 sourceLang 下前缀稳定，可命中 prompt cache
+function phoneticInstruction(sourceLang) {
+  switch (sourceLang) {
+    case 'ja':
+      return 'phonetic 字段：日文假名注音（平假名，必要时附罗马字），只给这个词在当前句语境下、当前词性的读音。';
+    case 'ko':
+      return 'phonetic 字段：谚文（韩文）注音，只给这个词在当前句语境下、当前词性的读音。';
+    case 'zh':
+      return 'phonetic 字段：汉语拼音（带声调），只给这个词在当前句语境下、当前词性的读音。';
+    case 'en':
+      return 'phonetic 字段：美式 IPA 音标（前后用斜杠包裹，如 /ˈæpl/），只给这个词在当前句语境下、当前词性的读音。';
+    default: // fr / de / es 等拉丁字母语言
+      return 'phonetic 字段：IPA 音标（前后用斜杠包裹），只给这个词在当前句语境下、当前词性的读音。';
+  }
+}
+
 function buildPrompt(word, context, sourceLang, targetLang) {
   const src = langDisplayName(sourceLang);
   const tgt = langDisplayName(targetLang);
@@ -20,8 +38,8 @@ function buildPrompt(word, context, sourceLang, targetLang) {
     `词: ${word}\n` +
     `原句: ${context}\n\n` +
     `以 JSON 格式返回，字段顺序固定如下（definition 必须是第一个字段）：\n` +
-    `{"definition": "...", "phonetic": "/.../", "in_context": "...", "example": "..."}\n\n` +
-    `phonetic 字段：美式 IPA 音标（前后用斜杠包裹），只给这个词在当前句语境下、当前词性的读音。`
+    `{"definition": "...", "phonetic": "...", "in_context": "...", "example": "..."}\n\n` +
+    phoneticInstruction(sourceLang)
   );
 }
 
