@@ -77,6 +77,15 @@
     "de": "Schließen",
     "es": "Cerrar"
   },
+  "lookup.action.speak": {
+    "zh": "发音",
+    "en": "Pronounce",
+    "ja": "発音",
+    "ko": "발음",
+    "fr": "Prononcer",
+    "de": "Aussprechen",
+    "es": "Pronunciar"
+  },
   "lookup.error.prefix": {
     "zh": "错误：",
     "en": "Error: ",

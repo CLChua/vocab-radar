@@ -20,7 +20,8 @@ function buildPrompt(word, context, sourceLang, targetLang) {
     `词: ${word}\n` +
     `原句: ${context}\n\n` +
     `以 JSON 格式返回，字段顺序固定如下（definition 必须是第一个字段）：\n` +
-    `{"definition": "...", "in_context": "...", "example": "..."}`
+    `{"definition": "...", "phonetic": "/.../", "in_context": "...", "example": "..."}\n\n` +
+    `phonetic 字段：美式 IPA 音标（前后用斜杠包裹），只给这个词在当前句语境下、当前词性的读音。`
   );
 }
 

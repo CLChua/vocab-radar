@@ -111,9 +111,15 @@
         word-wrap: break-word;
       }
       .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-      .word { flex: 1; min-width: 0; }
-      .word { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+      .word { flex: 0 1 auto; min-width: 0; font-size: 16px; font-weight: 600; color: #1a1a1a; overflow-wrap: anywhere; }
+      .phonetic { flex-shrink: 0; font-size: 12px; color: #888; white-space: nowrap; }
+      .speak-btn {
+        flex-shrink: 0; border: none; background: none; cursor: pointer;
+        font-size: 14px; line-height: 1; padding: 2px 4px; color: #666; border-radius: 4px;
+      }
+      .speak-btn:hover { background: #f0f0f0; color: #000; }
       .badge {
+        margin-left: auto;
         font-size: 11px; padding: 2px 8px; border-radius: 999px;
         background: #fff3b0; color: #6b5300; white-space: nowrap;
       }
@@ -156,6 +162,8 @@
     panel.innerHTML = `
       <div class="head">
         <span class="word"></span>
+        <span class="phonetic" data-role="phonetic"></span>
+        <button class="speak-btn" data-role="speak" title="${t('lookup.action.speak')}">🔊</button>
         <span class="badge fresh" data-role="badge">…</span>
       </div>
       <div class="section">
@@ -184,6 +192,7 @@
     panel.querySelector('[data-role="known"]').addEventListener('click', onKnownClicked);
     panel.querySelector('[data-role="graduated"]').addEventListener('click', onGraduatedClicked);
     panel.querySelector('[data-role="delete"]').addEventListener('click', onDeleteClicked);
+    panel.querySelector('[data-role="speak"]').addEventListener('click', onSpeakClicked);
 
     document.documentElement.appendChild(popupHost);
   }
@@ -235,6 +244,49 @@
     currentWord = null;
   }
 
+  // ========== 发音：浏览器内置 Web Speech API（与 DeepSeek 无关，纯本地 TTS） ==========
+  let cachedVoices = [];
+  function refreshVoices() {
+    try {
+      cachedVoices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+    } catch (_) { cachedVoices = []; }
+  }
+  // 语音列表是异步加载的，Chrome 首次 getVoices() 返回空数组
+  try {
+    if (window.speechSynthesis && typeof speechSynthesis.addEventListener === 'function') {
+      speechSynthesis.addEventListener('voiceschanged', refreshVoices);
+    }
+  } catch (_) {}
+
+  // 优先美式英语、名字里带 Google/Microsoft 的真人声；没有就用任意 en 语音
+  function pickEnVoice() {
+    if (cachedVoices.length === 0) refreshVoices();
+    const en = cachedVoices.filter((v) => /^en[-_]/.test(v.lang || ''));
+    if (en.length === 0) return null;
+    const us = en.filter((v) => /en[-_]US/i.test(v.lang || ''));
+    const pool = us.length > 0 ? us : en;
+    return pool.find((v) => /Google|Microsoft|Natural|Samantha|David|Zira|Alex/i.test(v.name || '')) || pool[0];
+  }
+
+  function speakWord(word) {
+    try {
+      if (!window.speechSynthesis || !word) return;
+      speechSynthesis.cancel(); // 打断上一次朗读
+      const utter = new SpeechSynthesisUtterance(word);
+      utter.lang = 'en-US';
+      const voice = pickEnVoice();
+      if (voice) utter.voice = voice;
+      utter.rate = 0.95;
+      speechSynthesis.speak(utter);
+    } catch (e) {
+      console.warn('[VocabRadar] speechSynthesis failed:', e);
+    }
+  }
+
+  function onSpeakClicked() {
+    if (currentWord) speakWord(currentWord);
+  }
+
   // ========== 渐进式 JSON 字段抽取 ==========
   // DeepSeek 流式吐字符级 token；我们用宽松正则从累积串里抓 definition/in_context/example
   function extractField(buf, key) {
@@ -256,6 +308,8 @@
       // 同步写进当前页 translationMap，hover 当场就能用，不必刷新
       setLiveTranslation(word, def);
     }
+    const ph = extractField(contentBuf, 'phonetic');
+    if (ph && ph.length) setText('phonetic', ph);
     const inCtx = extractField(contentBuf, 'in_context');
     if (inCtx && inCtx.length) setText('in-context', inCtx);
     const ex = extractField(contentBuf, 'example');
@@ -887,6 +941,7 @@
     // 翻译表 + 设置同步并行启动；高亮扫描不等它们
     loadTranslationsCS();
     loadCachedSettings();
+    refreshVoices(); // 预热 TTS 语音列表（Chrome 异步加载，点击时通常已就绪）
     try {
       const words = await loadHighlightWords();
       const count = scanAndHighlight(words);
@@ -931,6 +986,11 @@
     try { closePopup(); } catch (_) {}
     try { hideTooltip(); } catch (_) {}
     try { mutationObserver?.disconnect(); } catch (_) {}
+    try {
+      if (window.speechSynthesis && typeof speechSynthesis.removeEventListener === 'function') {
+        speechSynthesis.removeEventListener('voiceschanged', refreshVoices);
+      }
+    } catch (_) {}
     // 移除我们注入的高亮 CSS 和 host
     try { document.getElementById('vr-highlight-style')?.remove(); } catch (_) {}
   }
