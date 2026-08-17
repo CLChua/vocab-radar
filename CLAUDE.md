@@ -63,6 +63,8 @@ indexes: [status, lookup_count, last_seen_at]
 {
   word: string,                                    // PK
   translation: string | null,                      // DeepSeek 返回的完整 JSON 字符串
+  translation_lang: string | null,                 // 翻译时的释义语言（缓存隔离键之一）
+  translation_source_lang: string | null,          // 翻译时的阅读语言（缓存隔离键之二；旧数据无此字段 → 缓存失效重译一次）
   status: 'learning' | 'familiar' | 'graduated',
   lookup_count: number,
   first_seen_at: ISO string,

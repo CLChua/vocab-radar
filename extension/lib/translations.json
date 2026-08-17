@@ -140,6 +140,15 @@
     "de": "DeepSeek API-Schlüssel nicht gesetzt (Symbol klicken → Einstellungen)",
     "es": "Clave API DeepSeek no configurada (clic en icono → ajustes)"
   },
+  "lookup.error.noLocalVoice": {
+    "zh": "未找到 {lang} 的本地语音，已停止朗读（可在系统设置中添加语音）",
+    "en": "No local voice for {lang}, playback stopped (add one in system settings)",
+    "ja": "{lang} のローカル音声が見つかりません。読み上げを停止しました（システム設定で音声を追加できます）",
+    "ko": "{lang} 로컬 음성을 찾지 못해 읽기를 중지했습니다 (시스템 설정에서 음성 추가 가능)",
+    "fr": "Aucune voix locale pour {lang}, lecture arrêtée (ajoutez-en une dans les paramètres système)",
+    "de": "Keine lokale Stimme für {lang}, Wiedergabe gestoppt (in den Systemeinstellungen hinzufügen)",
+    "es": "No hay voz local para {lang}, reproducción detenida (añade una en la configuración del sistema)"
+  },
 
   "popup.section.stats": {
     "zh": "词汇统计",

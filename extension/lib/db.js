@@ -71,7 +71,7 @@ export async function logLookupEvent({ word, context, sourceUrl, pageTitle }) {
 }
 
 // ---- upsert_word: 单事务 read-modify-write
-// 返回：(status, lookup_count, cachedTranslation, cachedTranslationLang, demoted)
+// 返回：(status, lookup_count, cachedTranslation, cachedTranslationLang, cachedTranslationSourceLang, demoted)
 //   demoted: true 表示这次 upsert 把 familiar/graduated 自动降级回了 learning
 //
 // 状态机自动降级：familiar / graduated 状态的词如果被用户再次查询，强信号说明没真掌握，
@@ -117,12 +117,14 @@ export async function upsertWord({ word, context, sourceUrl }) {
     lookup_count: row.lookup_count,
     cachedTranslation: existing?.translation || null,
     cachedTranslationLang: existing?.translation_lang || null,
+    cachedTranslationSourceLang: existing?.translation_source_lang || null,
     demoted,
   };
 }
 
 // ---- save_translation: 翻译流结束后存进 words.translation + 语言标记
-export async function saveTranslation(word, translationJson, targetLang) {
+// sourceLang = 翻译时的阅读语言（缓存隔离键的一部分：targetLang + sourceLang 都匹配才命中）
+export async function saveTranslation(word, translationJson, targetLang, sourceLang) {
   const db = await getDb();
   const tx = db.transaction(['words'], 'readwrite');
   const store = tx.objectStore('words');
@@ -132,6 +134,7 @@ export async function saveTranslation(word, translationJson, targetLang) {
     ...existing,
     translation: translationJson,
     translation_lang: targetLang || null,
+    translation_source_lang: sourceLang || null,
   });
   await txDone(tx);
 }

@@ -270,9 +270,11 @@
     }
   } catch (_) {}
 
-  // 只保留本地语音：localService === true 是本地；属性缺失（Firefox/旧版）不挡功能，视为本地
+  // 只允许本地语音：严格要求 localService === true。
+  // Chrome 的远程 voices（如 Google 系列）localService=false，会把文本上传到远程合成，
+  // 违反项目"纯本地、无隐私顾虑"的定位；找不到本地语音时停止朗读并提示，绝不回退远程默认 voice。
   function isLocalVoice(v) {
-    return typeof v.localService !== 'boolean' || v.localService === true;
+    return v.localService === true;
   }
 
   // 按阅读语言挑语音：优先该语言的本地真人声，其次任意本地语音
@@ -306,12 +308,18 @@
   function speakWord(word) {
     try {
       if (!window.speechSynthesis || !word) return;
-      speechSynthesis.cancel(); // 打断上一次朗读
       const srcLang = (cachedSettings && cachedSettings.sourceLang) || 'en';
+      const voice = pickVoiceForLang(srcLang);
+      if (!voice) {
+        // 严格本地语音：没有本地 voice 就停止朗读并提示，避免浏览器回退到远程默认 voice
+        console.warn(`[VocabRadar] 未找到 ${srcLang} 的本地语音，已停止朗读`);
+        showError(t('lookup.error.noLocalVoice', { lang: srcLang }));
+        return;
+      }
+      speechSynthesis.cancel(); // 打断上一次朗读
       const utter = new SpeechSynthesisUtterance(word);
       utter.lang = SRC_LANG_LOCALE[srcLang] || srcLang;
-      const voice = pickVoiceForLang(srcLang);
-      if (voice) utter.voice = voice;
+      utter.voice = voice;
       utter.rate = 0.95;
       speechSynthesis.speak(utter);
     } catch (e) {

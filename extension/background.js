@@ -49,6 +49,7 @@ chrome.runtime.onConnect.addListener((port) => {
       const meta = { status: upsertResult.status, lookup_count: upsertResult.lookup_count };
       const cachedTranslation = upsertResult.cachedTranslation;
       const cachedTranslationLang = upsertResult.cachedTranslationLang;
+      const cachedTranslationSourceLang = upsertResult.cachedTranslationSourceLang;
       if (upsertResult.demoted) {
         console.log(`[VocabRadar] 自动降级 word="${word}" 已认识/已掌握 → learning（用户又在查）`);
       }
@@ -56,11 +57,14 @@ chrome.runtime.onConnect.addListener((port) => {
       // 2) 把 meta 包成 SSE 格式发给 content.js（保持原协议不变）
       port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify({ meta })}\n\n` });
 
-      // 2.5) 缓存命中：仅当**翻译时的目标语言**和当前用户偏好一致，且缓存带 phonetic 字段才用缓存
-      //      用户切换 targetLang 后，旧 lang 的缓存失效 → 重新调 DeepSeek
-      //      旧版本缓存没有 phonetic 字段（音标功能上线前）→ 缺音标视为失效，重译一次补上
+      // 2.5) 缓存命中：仅当**翻译时的目标语言 + 阅读语言**都和当前设置一致，且缓存带非空 phonetic 才用缓存
+      //      用户切换 targetLang 或 sourceLang 后旧缓存失效 → 重新调 DeepSeek
+      //      旧版本缓存没有 translation_source_lang / phonetic 字段（功能上线前）→ 视为失效，
+      //      重译一次补齐字段并覆盖缓存，之后同语言对命中即不再重复请求
       const settings = await getSettings();
-      const cacheUsable = cachedTranslation && cachedTranslationLang === settings.targetLang;
+      const cacheUsable = cachedTranslation &&
+        cachedTranslationLang === settings.targetLang &&
+        cachedTranslationSourceLang === settings.sourceLang;
       if (cacheUsable && !hasPhonetic(cachedTranslation)) {
         console.log(`[VocabRadar] 旧缓存缺 phonetic word="${word}" → 重译补音标`);
       }
@@ -71,12 +75,13 @@ chrome.runtime.onConnect.addListener((port) => {
         port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify(fakeChunk)}\n\n` });
         port.postMessage({ type: 'chunk', data: 'data: [DONE]\n\n' });
         port.postMessage({ type: 'done' });
-        console.log(`[VocabRadar] 缓存命中 word="${word}" lang=${cachedTranslationLang} 跳过 DeepSeek`);
+        console.log(`[VocabRadar] 缓存命中 word="${word}" lang=${cachedTranslationLang}/${cachedTranslationSourceLang} 跳过 DeepSeek`);
         try { port.disconnect(); } catch (_) {}
         return;
       }
-      if (cachedTranslation && cachedTranslationLang !== settings.targetLang) {
-        console.log(`[VocabRadar] 缓存语言不匹配 word="${word}" cached=${cachedTranslationLang} now=${settings.targetLang} → 重译`);
+      if (cachedTranslation &&
+        (cachedTranslationLang !== settings.targetLang || cachedTranslationSourceLang !== settings.sourceLang)) {
+        console.log(`[VocabRadar] 缓存语言对不匹配 word="${word}" cached=${cachedTranslationLang}/${cachedTranslationSourceLang} now=${settings.targetLang}/${settings.sourceLang} → 重译`);
       }
 
       // 3) 校验 settings.apiKey 存在；不存在直接报错
@@ -136,11 +141,12 @@ chrome.runtime.onConnect.addListener((port) => {
       port.postMessage({ type: 'done' });
 
       // 5) 落库 translation（fire-and-forget；失败不影响用户）
+      //    保存 targetLang + sourceLang 两个维度，作为后续缓存命中的隔离键
       const full = contentBuffer.join('').trim();
       if (full && !aborted) {
         try {
           JSON.parse(full); // 验证完整 JSON
-          await saveTranslation(word, full, settings.targetLang);
+          await saveTranslation(word, full, settings.targetLang, settings.sourceLang);
         } catch (_) { /* malformed JSON, skip */ }
       }
     } catch (err) {
