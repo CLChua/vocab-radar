@@ -140,6 +140,15 @@
     "de": "DeepSeek API-Schlüssel nicht gesetzt (Symbol klicken → Einstellungen)",
     "es": "Clave API DeepSeek no configurada (clic en icono → ajustes)"
   },
+  "lookup.error.cachedFallback": {
+    "zh": "以下为本地缓存的旧释义，未能获取新释义",
+    "en": "Showing cached translation (couldn't fetch a fresh one)",
+    "ja": "以下はローカルキャッシュの旧訳です（新しい訳を取得できませんでした）",
+    "ko": "아래는 로컬 캐시의 기존 해석입니다 (새 해석을 가져오지 못했습니다)",
+    "fr": "Affichage de l'ancienne traduction en cache (nouvelle indisponible)",
+    "de": "Anzeige der alten Übersetzung aus dem Cache (keine neue abrufbar)",
+    "es": "Mostrando la traducción anterior en caché (no se pudo obtener una nueva)"
+  },
   "lookup.error.noLocalVoice": {
     "zh": "未找到 {lang} 的本地语音，已停止朗读（可在系统设置中添加语音）",
     "en": "No local voice for {lang}, playback stopped (add one in system settings)",

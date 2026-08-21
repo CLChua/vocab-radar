@@ -9,6 +9,7 @@ import {
 import { getSettings, saveSettings, SUPPORTED_LANGS } from './lib/settings.js';
 import { streamTranslate, testApiKey } from './lib/deepseek.js';
 import { loadTranslations, t } from './lib/i18n.js';
+import { evaluateCache } from './lib/cache.js';
 
 async function getNoKeyErrorMessage(lang) {
   try {
@@ -19,15 +20,22 @@ async function getNoKeyErrorMessage(lang) {
   }
 }
 
-// 音标功能上线前的旧缓存 translation JSON 没有 phonetic 字段；
-// 缺音标时视为缓存失效 → 重译一次补上（流结束后 saveTranslation 会覆盖缓存，之后命中即带音标）
-function hasPhonetic(translationJson) {
+// API 失败 / 无 key / 离线时，兜底展示旧释义的说明文案
+async function getCachedFallbackNote(lang) {
   try {
-    const obj = JSON.parse(translationJson);
-    return typeof obj?.phonetic === 'string' && obj.phonetic.trim().length > 0;
-  } catch {
-    return false;
+    const trs = await loadTranslations();
+    return t(trs, 'lookup.error.cachedFallback', lang || 'zh');
+  } catch (_) {
+    return 'Showing cached translation';
   }
+}
+
+// 把缓存的完整 translation JSON 作为单帧发给 content.js（与命中路径的 fakeChunk 格式一致）
+function sendCachedContent(port, cachedTranslation) {
+  const fakeChunk = {
+    choices: [{ delta: { content: cachedTranslation }, finish_reason: 'stop' }],
+  };
+  port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify(fakeChunk)}\n\n` });
 }
 
 // ====== content.js 通过 chrome.runtime.connect({name:'translate'}) 建长连接走流式 ======
@@ -57,41 +65,47 @@ chrome.runtime.onConnect.addListener((port) => {
       // 2) 把 meta 包成 SSE 格式发给 content.js（保持原协议不变）
       port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify({ meta })}\n\n` });
 
-      // 2.5) 缓存命中：仅当**翻译时的目标语言 + 阅读语言**都和当前设置一致，且缓存带非空 phonetic 才用缓存
-      //      用户切换 targetLang 或 sourceLang 后旧缓存失效 → 重新调 DeepSeek
-      //      旧版本缓存没有 translation_source_lang / phonetic 字段（功能上线前）→ 视为失效，
-      //      重译一次补齐字段并覆盖缓存，之后同语言对命中即不再重复请求
+      // 2.5) 缓存判定：语言对（targetLang + sourceLang）匹配 且 translation 是有效释义 → 直接命中。
+      //      注意：phonetic **不是**命中条件。音标功能上线前的旧缓存没有 phonetic 字段，但它们仍是
+      //      有效释义，直接展示（只是不显示音标）；绝不因为缺音标就反复调 API，也不覆盖旧缓存。
+      //      语言对不匹配（用户切换 targetLang/sourceLang）或无缓存时才重新调 DeepSeek。
       const settings = await getSettings();
-      const cacheUsable = cachedTranslation &&
-        cachedTranslationLang === settings.targetLang &&
-        cachedTranslationSourceLang === settings.sourceLang;
-      if (cacheUsable && !hasPhonetic(cachedTranslation)) {
-        console.log(`[VocabRadar] 旧缓存缺 phonetic word="${word}" → 重译补音标`);
-      }
-      if (cacheUsable && hasPhonetic(cachedTranslation)) {
-        const fakeChunk = {
-          choices: [{ delta: { content: cachedTranslation }, finish_reason: 'stop' }],
-        };
-        port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify(fakeChunk)}\n\n` });
+      const cache = evaluateCache({
+        cachedTranslation,
+        cachedTranslationLang,
+        cachedTranslationSourceLang,
+        targetLang: settings.targetLang,
+        sourceLang: settings.sourceLang,
+      });
+      if (cache.serve) {
+        // 命中缓存但没配 key：附一条提示，避免用户误以为看到的是实时新释义
+        if (!settings.apiKey) {
+          const note = await getNoKeyErrorMessage(settings.targetLang);
+          port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify({ error: note })}\n\n` });
+        }
+        sendCachedContent(port, cachedTranslation);
         port.postMessage({ type: 'chunk', data: 'data: [DONE]\n\n' });
         port.postMessage({ type: 'done' });
         console.log(`[VocabRadar] 缓存命中 word="${word}" lang=${cachedTranslationLang}/${cachedTranslationSourceLang} 跳过 DeepSeek`);
         try { port.disconnect(); } catch (_) {}
         return;
       }
-      if (cachedTranslation &&
-        (cachedTranslationLang !== settings.targetLang || cachedTranslationSourceLang !== settings.sourceLang)) {
+      if (cachedTranslation && !cache.usable) {
         console.log(`[VocabRadar] 缓存语言对不匹配 word="${word}" cached=${cachedTranslationLang}/${cachedTranslationSourceLang} now=${settings.targetLang}/${settings.sourceLang} → 重译`);
       }
 
-      // 3) 校验 settings.apiKey 存在；不存在直接报错
+      // 3) 校验 settings.apiKey 存在；不存在 → 报错；若库里还有旧释义，一并展示（不丢旧数据）
       if (!settings.apiKey) {
         // i18n 这条错误：从 translations.json 拿对应语言；fallback 中文
         const errMsg = await getNoKeyErrorMessage(settings.targetLang);
-        port.postMessage({
-          type: 'chunk',
-          data: `data: ${JSON.stringify({ error: errMsg })}\n\n`,
-        });
+        // 有旧缓存释义 → 先展示它（用户仍能看到释义），再附错误提示说明为什么不是新的
+        if (cache.cachedObj) {
+          const note = `${errMsg} — ${await getCachedFallbackNote(settings.targetLang)}`;
+          port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify({ error: note })}\n\n` });
+          sendCachedContent(port, cachedTranslation);
+        } else {
+          port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify({ error: errMsg })}\n\n` });
+        }
         port.postMessage({ type: 'chunk', data: 'data: [DONE]\n\n' });
         port.postMessage({ type: 'done' });
         try { port.disconnect(); } catch (_) {}
@@ -122,19 +136,25 @@ chrome.runtime.onConnect.addListener((port) => {
         const totalChars = contentBuffer.join('').length;
         console.log(`[VocabRadar] DeepSeek 完成 word="${word}" 耗时=${dt}ms 行=${lineCount} 字符=${totalChars}`);
         if (totalChars === 0) {
-          // DeepSeek 返回了 200 但没产出任何内容 —— 透传一个 error chunk 让前端可见
-          port.postMessage({
-            type: 'chunk',
-            data: `data: ${JSON.stringify({ error: 'DeepSeek 返回了空内容（无 delta.content）' })}\n\n`,
-          });
+          // DeepSeek 返回了 200 但没产出任何内容 —— 透传一个 error chunk 让前端可见；
+          // 若库里还有旧释义则一并展示（网络/模型异常时旧释义不消失）
+          const emptyMsg = 'DeepSeek 返回了空内容（无 delta.content）';
+          const note = cache.cachedObj
+            ? `${emptyMsg} — ${await getCachedFallbackNote(settings.targetLang)}`
+            : emptyMsg;
+          port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify({ error: note })}\n\n` });
+          if (cache.cachedObj) sendCachedContent(port, cachedTranslation);
         }
       } catch (err) {
         const errMsg = String(err.message || err);
         console.warn(`[VocabRadar] DeepSeek 调用失败 word="${word}":`, errMsg);
-        port.postMessage({
-          type: 'chunk',
-          data: `data: ${JSON.stringify({ error: errMsg.slice(0, 200) })}\n\n`,
-        });
+        // 网络失败 / 离线 / HTTP 错误：保留并展示旧缓存释义，而不是只给一条错误
+        const short = errMsg.slice(0, 200);
+        const note = cache.cachedObj
+          ? `${short} — ${await getCachedFallbackNote(settings.targetLang)}`
+          : short;
+        port.postMessage({ type: 'chunk', data: `data: ${JSON.stringify({ error: note })}\n\n` });
+        if (cache.cachedObj) sendCachedContent(port, cachedTranslation);
       }
 
       port.postMessage({ type: 'chunk', data: 'data: [DONE]\n\n' });

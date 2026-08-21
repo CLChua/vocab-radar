@@ -409,6 +409,13 @@
 
     port.onMessage.addListener((msg) => {
       if (msg.type === 'error') {
+        // 流失败：先清掉可能残缺的流式内容，再展示（若有）旧缓存兜底释义 + 错误提示。
+        // background 在 error 帧之后可能跟一帧缓存的旧释义，重置后它才能干净渲染。
+        contentBuffer = '';
+        for (const role of ['definition', 'in-context', 'example', 'phonetic']) {
+          const el = popupRoot?.querySelector(`[data-role="${role}"]`);
+          if (el) el.textContent = '';
+        }
         showError(`${t('lookup.error.prefix')}${msg.error}`);
         translationDone = true;
         clearTimeout(stallTimer);

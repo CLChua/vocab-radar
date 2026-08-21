@@ -142,10 +142,12 @@ indexes: [word, created_at]
 原句: {context}
 
 以 JSON 格式返回，字段顺序固定如下（definition 必须是第一个字段）：
-{"definition": "...", "in_context": "...", "example": "..."}
+{"definition": "...", "phonetic": "...", "in_context": "...", "example": "..."}
 ```
 
 **System prompt 必须保持稳定**：DeepSeek 对相同 prefix 做 prompt cache（命中时 input 价格降 10×）。改 system prompt 会击穿缓存。
+
+> 缓存命中规则：语言对（targetLang + sourceLang）匹配 且 translation 是有效释义即命中；**phonetic 不是命中条件**——音标功能上线前的旧缓存没有 phonetic 字段，仍是有效释义，直接展示，不因缺音标反复调 API。API 失败 / 无 key / 离线时展示旧缓存释义并附提示（见 `lib/cache.js` 的 `evaluateCache`）。
 
 **必传**：`thinking: {type: 'disabled'}` —— v4-flash 默认开思考模式，所有 token 进 `delta.reasoning_content`，不关闭则 content.js 永远拿不到字符。
 
