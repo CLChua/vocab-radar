@@ -1,3 +1,5 @@
+> Built on top of [russodope/vocab-radar](https://github.com/russodope/vocab-radar) — full credit to the original author.
+
 # VocabRadar
 
 [中文](./README.md) · [**English**](./README.en.md)
@@ -39,7 +41,7 @@ Click-to-translate is a tool. VocabRadar is a **vocabulary growth system**.
 **Step 1: Get the code**
 
 ```bash
-git clone https://github.com/russodope/vocab-radar.git
+git clone https://github.com/CLChua/vocab-radar.git
 ```
 
 Or download the ZIP from GitHub.
@@ -70,6 +72,7 @@ You can change the key (and language pair) any time from the toolbar VocabRadar 
 | Action | Behavior |
 |---|---|
 | **Select** a word/phrase (double-click or drag) → **right-click** → "Look up" | Lookup popup → DeepSeek streams a definition + example (phrase lookup can be turned off in popup) |
+| Click 🔊 in popup | Pronounce the word with system-local voices (remote TTS fallback available via popup toggle) |
 | Click "Got it" in popup | Marked as `familiar` — no longer highlighted |
 | Click "Mastered" in popup | Marked as `graduated` — never highlighted again |
 | Click "Skip" in popup | **Removed from vocab entirely** (for accidental triggers) |
@@ -139,7 +142,7 @@ extension/
     ├── deepseek.js        # Direct DeepSeek API client (streaming + key test)
     ├── settings.js        # BYOK key + language pair management
     ├── i18n.js            # Translation loader for popup/onboarding
-    └── translations.json  # 36 strings × 7 languages
+    └── translations.json  # 52 strings × 7 languages
 
 docs/
 └── retros/                # Development retros, written after each major change
@@ -163,7 +166,7 @@ UI labels (popup + lookup popup) follow the chosen *definition* language.
 
 - [x] **v0.1** — FastAPI backend + extension end-to-end (deprecated)
 - [x] **v0.2** — Client-only refactor; backend deleted; BYOK; 7×7 languages
-- [x] **v0.2.x** — UX polish: phrase toggle, delete button, cache short-circuit, max_tokens cap, lang-aware cache, auto-reinject on update, state-machine auto-demotion, JSON export/import
+- [x] **v0.2.x** — UX polish: phrase toggle, delete button, cache short-circuit, max_tokens cap, lang-aware cache, auto-reinject on update, state-machine auto-demotion, JSON export/import, phonetics & TTS, **explicit right-click trigger (no more auto-popup on selection)**, network-voice fallback toggle
 - [ ] **v0.3** — Time-based auto-decay (`familiar` words untouched for 30 days drop back to `learning`)
 - [ ] **v0.4 ?** — Chrome Web Store listing
 - [ ] **v0.4 ?** — Web dashboard (vocab growth charts, search, batch edit)

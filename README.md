@@ -1,3 +1,5 @@
+> 本项目基础来自 [russodope/vocab-radar](https://github.com/russodope/vocab-radar)，感谢原作者的开创性工作。
+
 # VocabRadar
 
 [**中文**](./README.md) · [English](./README.en.md)
@@ -39,7 +41,7 @@
 **步骤一：拿到代码**
 
 ```bash
-git clone https://github.com/russodope/vocab-radar.git
+git clone https://github.com/CLChua/vocab-radar.git
 ```
 
 或者直接 Download ZIP。
@@ -70,6 +72,7 @@ git clone https://github.com/russodope/vocab-radar.git
 | 操作 | 行为 |
 |---|---|
 | **划选**一个词/短语（双击或拖选均可）→ **右键** → 点「查询"xxx"」 | 划词弹窗 → DeepSeek 流式给中文释义 + 例句（多词短语翻译可在 popup 关掉）|
+| 弹窗点 🔊 | 用系统本地语音朗读该词（默认只用本地语音；可在 popup 打开"允许网络语音"回退远程 TTS）|
 | 弹窗"我认识了" | 词标记为 familiar，不再高亮 |
 | 弹窗"完全掌握" | 词标记为 graduated，永久不再高亮 |
 | 弹窗"不用记" | 从词库**彻底删除**，不计入统计（误操作时用） |
@@ -159,7 +162,7 @@ docs/
 
 - [x] **v0.1** — FastAPI 后端 + 扩展前端打通端到端（已废弃）
 - [x] **v0.2** — 客户端化重构，删后端，BYOK，7×7 语言对
-- [x] **v0.2.x** — UX 打磨：短语开关 / 不用记按钮 / 缓存命中 / max_tokens 上限 / 缓存语言敏感 / 扩展更新自动重注入 / 状态机自动降级 / 备份导入导出
+- [x] **v0.2.x** — UX 打磨：短语开关 / 不用记按钮 / 缓存命中 / max_tokens 上限 / 缓存语言敏感 / 扩展更新自动重注入 / 状态机自动降级 / 备份导入导出 / 音标与发音 / **右键菜单显式触发（划词不再自动弹窗）** / 网络语音回退开关
 - [ ] **v0.3** — 自动时间降级（familiar 30 天没碰自动退回 learning）
 - [ ] **v0.4 ?** — 上 Chrome Web Store
 - [ ] **v0.4 ?** — Dashboard 网页（词汇增长曲线、搜索、批量编辑）
