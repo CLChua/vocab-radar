@@ -4,6 +4,10 @@
 import { loadTranslations, makeT } from './lib/i18n.js';
 
 const $ = (id) => document.getElementById(id);
+// 版本号从 manifest 动态读：多副本并存时靠它区分哪份在生效
+try {
+  $('ver').textContent = 'v' + chrome.runtime.getManifest().version;
+} catch (_) {}
 let _t = (k) => k; // 占位，loadSettings 后替换为真正的 t()
 
 const $banner = $('noKeyBanner');
@@ -20,6 +24,7 @@ const $keyStatus = $('keyStatus');
 const $sourceLang = $('sourceLang');
 const $targetLang = $('targetLang');
 const $translatePhrases = $('translatePhrases');
+const $allowRemoteVoices = $('allowRemoteVoices');
 const $btnExport = $('btnExport');
 const $btnImport = $('btnImport');
 const $importFile = $('importFile');
@@ -108,6 +113,7 @@ async function loadSettings() {
   fillLangSelect($sourceLang, currentSettings.sourceLang);
   fillLangSelect($targetLang, currentSettings.targetLang);
   $translatePhrases.checked = currentSettings.translatePhrases !== false;
+  $allowRemoteVoices.checked = currentSettings.allowRemoteVoices === true;
 }
 
 // 把所有带 data-i18n 的元素 textContent 替换成对应翻译；data-i18n-html 用 innerHTML
@@ -185,6 +191,10 @@ $targetLang.addEventListener('change', async () => {
 
 $translatePhrases.addEventListener('change', async () => {
   await send('saveSettings', { patch: { translatePhrases: $translatePhrases.checked } });
+});
+
+$allowRemoteVoices.addEventListener('change', async () => {
+  await send('saveSettings', { patch: { allowRemoteVoices: $allowRemoteVoices.checked } });
 });
 
 $btnRefresh.addEventListener('click', loadStats);

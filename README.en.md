@@ -69,8 +69,7 @@ You can change the key (and language pair) any time from the toolbar VocabRadar 
 
 | Action | Behavior |
 |---|---|
-| **Double-click** an English word | Lookup popup → DeepSeek streams a definition + example |
-| **Drag-select** a phrase (e.g. `no-brainer`) | Same as above (phrase translation can be turned off in popup) |
+| **Select** a word/phrase (double-click or drag) → **right-click** → "Look up" | Lookup popup → DeepSeek streams a definition + example (phrase lookup can be turned off in popup) |
 | Click "Got it" in popup | Marked as `familiar` — no longer highlighted |
 | Click "Mastered" in popup | Marked as `graduated` — never highlighted again |
 | Click "Skip" in popup | **Removed from vocab entirely** (for accidental triggers) |
@@ -105,6 +104,7 @@ To switch machines: export on old → transfer the file → install extension on
 - Vocabulary lives in IndexedDB (per-profile, isolated)
 - API key lives in `chrome.storage.local` (not readable by other extensions or web pages)
 - Only outbound traffic: when you trigger a lookup, the extension calls `https://api.deepseek.com` directly. **No middleman, no tracking server (not even mine).**
+- 🔊 Pronunciation uses system-local voices only by default; if you enable "Allow network voices" in the popup, the browser falls back to remote TTS (e.g., Google) when no local voice exists — the spoken word is then sent over the network.
 
 **Known limitations (inherent to any client-side API tool):**
 - The API key travels in the `Authorization: Bearer ...` header for each call. If you open DevTools → Network, you can see your own key.

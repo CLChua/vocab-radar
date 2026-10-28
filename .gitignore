@@ -15,3 +15,6 @@ tmp/
 
 # 词库导出备份（popup 导出文件名形如 vocab-radar-YYYY-MM-DD.json）
 vocab-radar-*.json
+
+# 本地临时凭据，永不入库
+vocab-radartmpcreds.txt

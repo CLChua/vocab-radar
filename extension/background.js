@@ -250,6 +250,39 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true; // async
 });
 
+// ====== 右键菜单：划词 → 右键 → 「查询」触发弹窗 ======
+// 划词 mouseup 自动触发误操作多，v0.2.1 起改为显式触发。
+// 菜单项只在页面有选区时出现（contexts: ['selection']）；标题跟 targetLang 走 i18n。
+async function setupContextMenu() {
+  try {
+    const [trs, settings] = await Promise.all([loadTranslations(), getSettings()]);
+    const title = t(trs, 'contextMenu.lookup', settings.targetLang || 'zh');
+    await chrome.contextMenus.removeAll();
+    chrome.contextMenus.create({
+      id: 'vr-lookup-selection',
+      title, // %s 由 Chrome 替换成当前选中文本
+      contexts: ['selection'],
+    });
+  } catch (e) {
+    console.warn('[VocabRadar] context menu setup failed', e);
+  }
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== 'vr-lookup-selection') return;
+  if (!tab?.id) return;
+  // 选区此刻仍活跃；让目标页 content.js 读取 selection 做校验 + 取上下文 + 定位弹窗
+  chrome.tabs.sendMessage(tab.id, { type: 'lookupSelection' }).catch(() => {
+    // 没有 content script 接收（chrome:// 页等）时静默忽略
+  });
+});
+
+// targetLang 变化时菜单标题跟着换语言
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (changes['vr_settings_v1']) setupContextMenu();
+});
+
 // ====== 首次安装：打开 onboarding 页 ======
 // ====== 扩展更新：自动给所有 http(s) tab 重新注入 content.js（kill-switch 替换旧实例）
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -257,6 +290,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
   }
   if (details.reason === 'update' || details.reason === 'install') {
+    setupContextMenu(); // 菜单项不跨扩展更新存活，install/update 都重建
     try {
       const tabs = await chrome.tabs.query({});
       for (const tab of tabs) {

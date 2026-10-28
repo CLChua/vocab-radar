@@ -69,8 +69,7 @@ git clone https://github.com/russodope/vocab-radar.git
 
 | 操作 | 行为 |
 |---|---|
-| **双击** 一个英文词 | 划词弹窗 → DeepSeek 流式给中文释义 + 例句 |
-| **拖选** 多词短语（如 `no-brainer`）| 同上（短语翻译可在 popup 关掉） |
+| **划选**一个词/短语（双击或拖选均可）→ **右键** → 点「查询"xxx"」 | 划词弹窗 → DeepSeek 流式给中文释义 + 例句（多词短语翻译可在 popup 关掉）|
 | 弹窗"我认识了" | 词标记为 familiar，不再高亮 |
 | 弹窗"完全掌握" | 词标记为 graduated，永久不再高亮 |
 | 弹窗"不用记" | 从词库**彻底删除**，不计入统计（误操作时用） |
@@ -105,6 +104,7 @@ popup 的"备份与迁移"区有两个按钮：
 - 词汇库存在 IndexedDB（按浏览器 profile 隔离）
 - API key 存在 `chrome.storage.local`（其他扩展/网站无法读取）
 - 唯一对外通信：你查询时扩展直接发请求到 `https://api.deepseek.com`，**不经过任何中间服务器**（包括我）
+- 🔊 朗读默认只用系统本地语音；若你在 popup 打开"允许网络语音朗读"，本地缺失时浏览器会回退远程 TTS（如 Google），此时被朗读的单词会经网络发送
 
 **已知限制（任何客户端 API 工具的固有问题）**：
 - API key 在请求里以 `Authorization: Bearer ...` 头发出，打开 DevTools Network 面板能看到自己的 key

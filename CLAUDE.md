@@ -3,7 +3,7 @@
 ## 项目概述
 
 Chrome 扩展，划词查英文 + 个人词汇成长追踪系统。
-- 用户在浏览英文网页时双击或划选某个词 → 弹窗显示中文释义（DeepSeek 流式生成）
+- 用户在浏览英文网页时双击或划选某个词 → 右键 → 菜单点「查询」→ 弹窗显示中文释义（DeepSeek 流式生成）。**不自动弹窗**（v0.2.1 起，mouseup 自动触发误操作多，已删）
 - 不认识的词自动建状态机（learning → familiar → graduated）
 - 再次访问含有 learning 状态词的页面时自动高亮
 - 累计查询 ≥ 3 次的"卡词"用更深的橙色高亮
@@ -26,7 +26,7 @@ Chrome 扩展，划词查英文 + 个人词汇成长追踪系统。
 | 全部 | Chrome 扩展 MV3，**纯客户端**，无后端 |
 | Service Worker | `background.js` ES module + `lib/{db,deepseek,settings}.js` |
 | 数据库 | **IndexedDB**（store: `words` + `lookup_events`） |
-| 设置存储 | `chrome.storage.local`（API key、语言对、模型名） |
+| 设置存储 | `chrome.storage.local`（API key、语言对、模型名、行为开关：短语翻译 / 网络语音朗读） |
 | AI | **BYOK**：用户自带 DeepSeek key，扩展直调 `https://api.deepseek.com`（默认 `deepseek-v4-flash` + thinking disabled） |
 | UI | Vanilla JS + Shadow DOM 弹窗（与页面 CSS 完全隔离） |
 
@@ -121,10 +121,16 @@ indexes: [word, created_at]
 |---|---|---|
 | `getHighlightWords` | 高亮扫描需要的 learning 词列表（含 translation） | `{highlight_words: [{word, lookup_count, translation}]}` |
 | `updateWordStatus` | 改 status | `{word, status, lookup_count}` |
+| `deleteWord` | 彻底删除词 + 相关 lookup_events | `{ok}` |
 | `getStats` | popup 词汇统计 | `{total, learning, familiar, graduated, looked_up_today}` |
 | `getSettings` / `saveSettings` | 读写设置 | `{apiKey, apiBaseUrl, model, sourceLang, targetLang}` + `supportedLangs` |
 | `testApiKey` | 验证 key 有效性（最便宜请求） | `{ok, error?}` |
 | `exportAll` / `importAll` | 备份用 | JSON dump |
+
+### bg → content（`chrome.tabs.sendMessage`）
+| type | 用途 |
+|---|---|
+| `lookupSelection` | 右键菜单「查询 "%s"」点击后触发；content.js 读当前 selection 走校验管线（expandHyphenated / VALID_RE / 撇号残留 / 短语开关 / 编辑区排除）后弹窗 |
 
 ---
 

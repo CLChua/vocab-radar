@@ -158,6 +158,42 @@
     "de": "Keine lokale Stimme für {lang}, Wiedergabe gestoppt (in den Systemeinstellungen hinzufügen)",
     "es": "No hay voz local para {lang}, reproducción detenida (añade una en la configuración del sistema)"
   },
+  "contextMenu.lookup": {
+    "zh": "查询「%s」",
+    "en": "Look up \"%s\"",
+    "ja": "「%s」を調べる",
+    "ko": "\"%s\" 조회",
+    "fr": "Rechercher \"%s\"",
+    "de": "\"%s\" nachschlagen",
+    "es": "Buscar \"%s\""
+  },
+  "lookup.error.noVoice": {
+    "zh": "未找到 {lang} 的可用语音（本地与远程均无）",
+    "en": "No voice available for {lang} (neither local nor remote)",
+    "ja": "{lang} の利用可能な音声がありません（ローカル・リモートともに）",
+    "ko": "{lang} 사용 가능한 음성이 없습니다 (로컬/원격 모두)",
+    "fr": "Aucune voix disponible pour {lang} (ni locale ni distante)",
+    "de": "Keine Stimme für {lang} verfügbar (weder lokal noch remote)",
+    "es": "No hay voz disponible para {lang} (ni local ni remota)"
+  },
+  "popup.behavior.remoteVoices": {
+    "zh": "允许网络语音朗读",
+    "en": "Allow network voices for TTS",
+    "ja": "ネットワーク音声での読み上げを許可",
+    "ko": "네트워크 음성 읽기 허용",
+    "fr": "Autoriser les voix réseau pour la lecture",
+    "de": "Netzwerkstimmen für Vorlesen erlauben",
+    "es": "Permitir voces de red para leer"
+  },
+  "popup.behavior.remoteVoices.hint": {
+    "zh": "仅当系统没有本地语音时回退浏览器远程语音（如 Google）；开启后被朗读的文本会经网络发送。",
+    "en": "Fall back to browser remote voices (e.g., Google) only when no local voice exists; the spoken text is then sent over the network.",
+    "ja": "ローカル音声がない場合のみブラウザのリモート音声（Google など）へフォールバック。有効時は読み上げテキストがネットワーク送信されます。",
+    "ko": "로컬 음성이 없을 때만 브라우저 원격 음성(예: Google)으로 대체합니다. 켜면 읽을 텍스트가 네트워크로 전송됩니다.",
+    "fr": "Repli sur les voix distantes du navigateur (ex. Google) uniquement sans voix locale ; le texte lu est alors envoyé via le réseau.",
+    "de": "Nur ohne lokale Stimme auf Remote-Stimmen des Browsers (z. B. Google) zurückfallen; der vorgelesene Text wird dann über das Netz gesendet.",
+    "es": "Recurrir a voces remotas del navegador (p. ej., Google) solo si no hay voz local; el texto leído se envía por la red."
+  },
 
   "popup.section.stats": {
     "zh": "词汇统计",

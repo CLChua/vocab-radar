@@ -92,7 +92,7 @@
     </style>
   </head>
   <body>
-    <h1>VocabRadar <span class="ver">v0.2</span></h1>
+    <h1>VocabRadar <span class="ver" id="ver">v0.2</span></h1>
 
     <div id="noKeyBanner" class="no-key-banner" hidden>
       <span class="hl" data-i18n="popup.key.notSet">尚未设置 API key</span><br/>
@@ -156,6 +156,11 @@
         <input type="checkbox" id="translatePhrases" />
       </div>
       <div class="hint" data-i18n="popup.behavior.phrases.hint">关闭后，drag-select 一整段不会触发翻译；连字符词（如 no-brainer）不受影响。</div>
+      <div class="row">
+        <label for="allowRemoteVoices" style="cursor:pointer;" data-i18n="popup.behavior.remoteVoices">允许网络语音朗读</label>
+        <input type="checkbox" id="allowRemoteVoices" />
+      </div>
+      <div class="hint" data-i18n="popup.behavior.remoteVoices.hint">仅当系统没有本地语音时回退浏览器远程语音（如 Google）；开启后被朗读的文本会经网络发送。</div>
     </div>
 
     <!-- 备份与迁移 -->

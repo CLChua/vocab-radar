@@ -270,20 +270,25 @@
     }
   } catch (_) {}
 
-  // 只允许本地语音：严格要求 localService === true。
-  // Chrome 的远程 voices（如 Google 系列）localService=false，会把文本上传到远程合成，
-  // 违反项目"纯本地、无隐私顾虑"的定位；找不到本地语音时停止朗读并提示，绝不回退远程默认 voice。
+  // 语音策略：默认严格只允许 localService === true 的本地语音（Chrome 的远程 voices
+  // 会把文本上传到远程合成，违反项目"纯本地"定位）；用户在 popup 打开
+  // "允许网络语音朗读"后，本地缺失时才回退到该语言的远程语音。
   function isLocalVoice(v) {
     return v.localService === true;
   }
 
-  // 按阅读语言挑语音：优先该语言的本地真人声，其次任意本地语音
+  // 按阅读语言挑语音：优先该语言的本地真人声；
+  // 本地没有且用户开了"允许网络语音"→ 回退浏览器远程语音（文本会经网络发送）
   function pickVoiceForLang(langCode) {
     if (cachedVoices.length === 0) refreshVoices();
     const prefix = (langCode || 'en').toLowerCase();
-    const pool = cachedVoices.filter(
-      (v) => isLocalVoice(v) && v.lang && v.lang.toLowerCase().startsWith(prefix),
+    const byLang = cachedVoices.filter(
+      (v) => v.lang && v.lang.toLowerCase().startsWith(prefix),
     );
+    let pool = byLang.filter(isLocalVoice);
+    if (pool.length === 0 && cachedSettings.allowRemoteVoices === true) {
+      pool = byLang;
+    }
     if (pool.length === 0) return null;
     // 方言偏好：en → 美国英语；zh → 普通话；其余语言无偏好
     const dialectPref = { en: 'US', zh: 'CN' };
@@ -311,9 +316,12 @@
       const srcLang = (cachedSettings && cachedSettings.sourceLang) || 'en';
       const voice = pickVoiceForLang(srcLang);
       if (!voice) {
-        // 严格本地语音：没有本地 voice 就停止朗读并提示，避免浏览器回退到远程默认 voice
-        console.warn(`[VocabRadar] 未找到 ${srcLang} 的本地语音，已停止朗读`);
-        showError(t('lookup.error.noLocalVoice', { lang: srcLang }));
+        // 无可用语音：停止朗读并提示（文案按是否已开网络语音区分）
+        console.warn(`[VocabRadar] 未找到 ${srcLang} 的可用语音，已停止朗读`);
+        const key = cachedSettings.allowRemoteVoices
+          ? 'lookup.error.noVoice'
+          : 'lookup.error.noLocalVoice';
+        showError(t(key, { lang: srcLang }));
         return;
       }
       speechSynthesis.cancel(); // 打断上一次朗读
@@ -546,58 +554,57 @@
     }
   }
 
-  // ========== 划词监听 ==========
-  function onMouseUp(e) {
-    // 点击在弹窗内不触发
-    if (popupHost && popupHost.contains(e.target)) return;
+  // ========== 查询触发：划词 → 右键菜单「查询」==========
+  // v0.2.1 前是 mouseup 自动触发，误操作多；现在改为显式触发：
+  // background 的 contextMenus.onClicked 向本 tab 发 {type:'lookupSelection'}，
+  // 这里读取当前 selection 走同一套校验管线（扩展连字符/撇号残留/短语开关/编辑区排除）。
+  function handleLookupSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
 
-    // 双击 = e.detail === 2；拖选 = e.detail === 1
-    const isDoubleClick = e.detail === 2;
+    // 先扩展再校验，"no-brainer" 这种通过双击选中也能查
+    const text = expandHyphenated(sel);
 
-    // 节流到下一帧，等浏览器把 selection 状态稳定下来
-    setTimeout(() => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) return;
+    if (!text || text.length > MAX_WORD_LEN) return;
+    if (!VALID_RE.test(text)) return;
 
-      // 先扩展再校验，"no-brainer" 这种通过双击也能查
-      let text = expandHyphenated(sel);
+    // 单字母词无学习价值（a/I/s/t...），直接忽略
+    if (text.length === 1) return;
+    // 撇号缩写残留（It's 的 s、we'll 的 ll、you're 的 re...）：选区紧跟撇号 → 忽略
+    if (precededByApostrophe(sel)) return;
 
-      // 双击只允许单词。某些页面/字体/NBSP 会让浏览器把两个词当一个选中；
-      // 这里只取第一个空白前的部分，避免把 "nails the" 这种存进库。
-      if (isDoubleClick && /\s/.test(text)) {
-        text = text.split(/\s+/)[0];
+    // 多词短语开关（连字符复合词不含空白，不受此约束）
+    if (cachedSettings.translatePhrases === false && /\s/.test(text)) return;
+
+    // 排除在 input/textarea/可编辑区/code/pre 里的选择
+    const anchor = sel.anchorNode?.parentElement;
+    if (!anchor) return;
+    const blocked = anchor.closest('input, textarea, [contenteditable=""], [contenteditable="true"], code, pre');
+    if (blocked) return;
+
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0)) return;
+
+    const context = extractContextSentence(sel);
+    startTranslate(text, context, rect);
+  }
+
+  try {
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (msg?.type === 'lookupSelection') {
+        handleLookupSelection();
+        sendResponse({ ok: true });
       }
-
-      if (!text || text.length > MAX_WORD_LEN) return;
-      if (!VALID_RE.test(text)) return;
-
-      // 单字母词无学习价值（a/I/s/t...），直接忽略
-      if (text.length === 1) return;
-      // 撇号缩写残留（It's 的 s、we'll 的 ll、you're 的 re...）：选区紧跟撇号 → 忽略
-      if (precededByApostrophe(sel)) return;
-
-      // 多词短语开关（连字符复合词不含空白，不受此约束）
-      if (cachedSettings.translatePhrases === false && /\s/.test(text)) return;
-
-      // 排除在 input/textarea/可编辑区/code/pre 里的选择
-      const anchor = sel.anchorNode?.parentElement;
-      if (!anchor) return;
-      const blocked = anchor.closest('input, textarea, [contenteditable=""], [contenteditable="true"], code, pre');
-      if (blocked) return;
-
-      const rect = sel.getRangeAt(0).getBoundingClientRect();
-      if (!rect || (rect.width === 0 && rect.height === 0)) return;
-
-      const context = extractContextSentence(sel);
-      startTranslate(text, context, rect);
-    }, 0);
+    });
+  } catch (_) {
+    // 扩展上下文失效（僵尸实例）时注册会抛错，忽略即可，kill-switch 会清理
   }
 
   // 点击弹窗外关闭
   function onDocClick(e) {
     if (!popupHost) return;
     if (popupHost.contains(e.target)) return;
-    // 如果点击恰好是新的划词，让 mouseup 处理；这里只在没有新选区时关闭
+    // 有选区时可能是用户划了新词准备右键查询，先不关；无选区才关闭
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) return;
     closePopup();
@@ -999,7 +1006,9 @@
     try {
       const words = await loadHighlightWords();
       const count = scanAndHighlight(words);
-      console.log(`[VocabRadar] 初次扫描：${words.length} 个高亮词，命中 ${count} 个文本节点`);
+      const ver = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest)
+        ? chrome.runtime.getManifest().version : '?';
+      console.log(`[VocabRadar] v${ver} 初次扫描：${words.length} 个高亮词，命中 ${count} 个文本节点`);
 
       // SPA 内容延迟挂载兜底：500ms / 1500ms / 3500ms 各兜一次（针对 React/Vue 慢速渲染）
       if (scanContext) {
@@ -1020,7 +1029,6 @@
     init();
   }
 
-  document.addEventListener('mouseup', onMouseUp, true);
   document.addEventListener('mousedown', onDocClick, true);
   document.addEventListener('keydown', onKeyDown, true);
   // hover tooltip：mouseover/mouseout 用冒泡，靠 closest 委托到 .vr-highlight
@@ -1031,7 +1039,6 @@
   // 触发我们这一节，把所有监听 + popup + observer 都拆掉
   function destroySelf() {
     try {
-      document.removeEventListener('mouseup', onMouseUp, true);
       document.removeEventListener('mousedown', onDocClick, true);
       document.removeEventListener('keydown', onKeyDown, true);
       document.removeEventListener('mouseover', onHoverEnter, true);

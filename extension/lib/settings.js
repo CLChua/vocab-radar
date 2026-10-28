@@ -22,6 +22,7 @@ const DEFAULTS = {
   sourceLang: 'en',
   targetLang: 'zh',
   translatePhrases: true,  // 是否允许多词短语触发翻译；连字符复合词不受此影响
+  allowRemoteVoices: false, // 无本地语音时是否回退浏览器远程 TTS（远程合成会把朗读文本经网络发送）
 };
 
 export { SUPPORTED_LANGS };
